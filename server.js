@@ -13,7 +13,7 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
 // Mount webhook routes AFTER JSON middleware
-const webhookRoutes = require('./routes/webhook');
+const { router: webhookRoutes } = require('./routes/webhook');
 app.use('/webhook', webhookRoutes);
 
 // Request logging middleware
