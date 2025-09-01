@@ -55,43 +55,66 @@ class CalComService {
     /**
      * Reschedule a booking using Cal.com API
      */
-    async rescheduleBooking({ bookingUid, startTime, endTime, rescheduledBy, reschedulingReason }) {
-        try {
-            const payload = {
-                bookingUid,
-                startTime,
-                endTime,
-                rescheduledBy,
-                reschedulingReason
-            };
+    async rescheduleBooking({ bookingUid, startTime, endTime, rescheduledBy, reschedulingReason, equipmentType }) {
+    try {
+        const apiKeyMap = {
+            PROJECTOR: process.env.CAL_API_KEY_PROJECTOR,
+            SPEAKER: process.env.CAL_API_KEY_SPEAKER,
+            LOGITECH1: process.env.CAL_API_KEY_LOGITECH1,
+            LOGITECH2: process.env.CAL_API_KEY_LOGITECH2
+        };
 
-            logger.info('Attempting to reschedule booking:', { bookingUid, startTime, endTime });
+        const selectedKey = apiKeyMap[equipmentType];
+        if (!selectedKey) throw new Error(`No API key found for equipment type: ${equipmentType}`);
 
-            const response = await this.client.post('/bookings/reschedule', payload);
-            
-            logger.info('Booking rescheduled successfully:', { 
-                bookingUid, 
-                responseStatus: response.status 
-            });
+        const client = axios.create({
+            baseURL: this.baseURL,
+            timeout: 30000,
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${selectedKey}`
+            }
+        });
 
-            return {
-                success: true,
-                data: response.data,
-                status: response.status
-            };
+        const payload = {
+            bookingUid,
+            startTime,
+            endTime,
+            rescheduledBy,
+            reschedulingReason
+        };
 
-        } catch (error) {
-            logger.error('Failed to reschedule booking:', {
-                bookingUid,
-                error: error.message,
-                status: error.response?.status,
-                data: error.response?.data
-            });
+        logger.info('Attempting to reschedule booking:', {
+            bookingUid,
+            startTime,
+            endTime,
+            equipmentType
+        });
 
-            return this.handleApiError(error, 'reschedule');
-        }
+        const response = await client.post('/bookings/reschedule', payload);
+
+        logger.info('Booking rescheduled successfully:', {
+            bookingUid,
+            responseStatus: response.status
+        });
+
+        return {
+            success: true,
+            data: response.data,
+            status: response.status
+        };
+
+    } catch (error) {
+        logger.error('Failed to reschedule booking:', {
+            bookingUid,
+            error: error.message,
+            status: error.response?.status,
+            data: error.response?.data
+        });
+
+        return this.handleApiError(error, 'reschedule');
     }
-
+}
     /**
      * Cancel a booking using Cal.com API
      */
