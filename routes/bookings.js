@@ -10,22 +10,23 @@ const logger = require('../utils/logger');
  */
 router.post('/reschedule', validateApiKey, validateRescheduleRequest, async (req, res) => {
     try {
-        const { bookingUid, startTime, endTime, rescheduledBy, reschedulingReason } = req.body;
-        
-        logger.info('Processing reschedule request:', { 
-            bookingUid, 
-            startTime, 
-            endTime, 
-            rescheduledBy 
-        });
+        const {
+  bookingUid,
+  startTime,
+  endTime,
+  rescheduledBy,
+  reschedulingReason,
+  equipmentType
+} = req.body;
 
-        const result = await calcomService.rescheduleBooking({
-            bookingUid,
-            startTime,
-            endTime,
-            rescheduledBy,
-            reschedulingReason
-        });
+const result = await calcomService.rescheduleBooking({
+  bookingUid,
+  startTime,
+  endTime,
+  rescheduledBy,
+  reschedulingReason,
+  equipmentType
+});
 
         if (result.success) {
             res.status(result.status || 200).json({
