@@ -7,6 +7,8 @@ const bookingsRoutes = require('./routes/bookings');
 const app = express();
 const PORT = process.env.PORT || 5000;
 const HOST = '0.0.0.0';
+const webhookRoutes = require('./routes/webhook');
+app.use('/webhook', webhookRoutes);
 
 // Middleware
 app.use(cors());
