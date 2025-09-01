@@ -74,6 +74,9 @@ router.get('/bookings', validateApiKey, async (req, res) => {
         });
     }
 });
+router.get('/synced-bookings', (req, res) => {
+  res.status(200).json(bookingCache);
+});
 /**
  * POST /api/cancel
  * Cancel a booking
