@@ -49,7 +49,30 @@ router.post('/reschedule', validateApiKey, validateRescheduleRequest, async (req
         });
     }
 });
+/** 
+ * GET /api/bookings 
+ * Fetch upcoming bookings 
+ */
+router.get('/bookings', validateApiKey, async (req, res) => {
+    try {
+        const bookings = await calcomService.getUpcomingBookings(); // You’ll define this in services/calcom.js
 
+        res.status(200).json({
+            success: true,
+            data: { bookings },
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        logger.error('Error fetching bookings:', error);
+        res.status(500).json({
+            success: false,
+            error: {
+                message: 'Failed to fetch bookings',
+                timestamp: new Date().toISOString()
+            }
+        });
+    }
+});
 /**
  * POST /api/cancel
  * Cancel a booking
