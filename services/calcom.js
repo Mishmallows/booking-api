@@ -4,20 +4,38 @@ const logger = require('../utils/logger');
 class CalComService {
     constructor() {
         this.baseURL = 'https://api.cal.com/v1';
-        this.apiKey = process.env.CAL_API_KEY;
-        
-        // Create axios instance with default config
-        this.client = axios.create({
+    }
+
+    /**
+     * Dynamically select API key based on equipment type
+     */
+    getApiKey(equipmentType) {
+        const apiKeyMap = {
+            PROJECTOR: process.env.CAL_API_KEY_PROJECTOR,
+            SPEAKER: process.env.CAL_API_KEY_SPEAKER,
+            LOGITECH1: process.env.CAL_API_KEY_LOGITECH1,
+            LOGITECH2: process.env.CAL_API_KEY_LOGITECH2
+        };
+
+        const selectedKey = apiKeyMap[equipmentType];
+        if (!selectedKey) throw new Error(`No API key found for equipment type: ${equipmentType}`);
+        return selectedKey;
+    }
+
+    /**
+     * Create a fresh axios client with the correct API key
+     */
+    createClient(apiKey) {
+        const client = axios.create({
             baseURL: this.baseURL,
             timeout: 30000,
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${this.apiKey}`
+                'Authorization': `Bearer ${apiKey}`
             }
         });
 
-        // Request interceptor for logging
-        this.client.interceptors.request.use(
+        client.interceptors.request.use(
             (config) => {
                 logger.info('Cal.com API Request:', {
                     method: config.method?.toUpperCase(),
@@ -32,8 +50,7 @@ class CalComService {
             }
         );
 
-        // Response interceptor for logging
-        this.client.interceptors.response.use(
+        client.interceptors.response.use(
             (response) => {
                 logger.info('Cal.com API Response:', {
                     status: response.status,
@@ -50,88 +67,69 @@ class CalComService {
                 return Promise.reject(error);
             }
         );
+
+        return client;
     }
 
     /**
      * Reschedule a booking using Cal.com API
      */
     async rescheduleBooking({ bookingUid, startTime, endTime, rescheduledBy, reschedulingReason, equipmentType }) {
-    try {
-        const apiKeyMap = {
-            PROJECTOR: process.env.CAL_API_KEY_PROJECTOR,
-            SPEAKER: process.env.CAL_API_KEY_SPEAKER,
-            LOGITECH1: process.env.CAL_API_KEY_LOGITECH1,
-            LOGITECH2: process.env.CAL_API_KEY_LOGITECH2
-        };
+        try {
+            const apiKey = this.getApiKey(equipmentType);
+            const client = this.createClient(apiKey);
 
-        const selectedKey = apiKeyMap[equipmentType];
-        if (!selectedKey) throw new Error(`No API key found for equipment type: ${equipmentType}`);
+            const payload = { bookingUid, startTime, endTime, rescheduledBy, reschedulingReason };
 
-        const client = axios.create({
-            baseURL: this.baseURL,
-            timeout: 30000,
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${selectedKey}`
-            }
-        });
+            logger.info('Attempting to reschedule booking:', {
+                bookingUid,
+                startTime,
+                endTime,
+                equipmentType
+            });
 
-        const payload = {
-            bookingUid,
-            startTime,
-            endTime,
-            rescheduledBy,
-            reschedulingReason
-        };
+            const response = await client.post('/bookings/reschedule', payload);
 
-        logger.info('Attempting to reschedule booking:', {
-            bookingUid,
-            startTime,
-            endTime,
-            equipmentType
-        });
+            logger.info('Booking rescheduled successfully:', {
+                bookingUid,
+                responseStatus: response.status
+            });
 
-        const response = await client.post('/bookings/reschedule', payload);
+            return {
+                success: true,
+                data: response.data,
+                status: response.status
+            };
 
-        logger.info('Booking rescheduled successfully:', {
-            bookingUid,
-            responseStatus: response.status
-        });
+        } catch (error) {
+            logger.error('Failed to reschedule booking:', {
+                bookingUid,
+                error: error.message,
+                status: error.response?.status,
+                data: error.response?.data
+            });
 
-        return {
-            success: true,
-            data: response.data,
-            status: response.status
-        };
-
-    } catch (error) {
-        logger.error('Failed to reschedule booking:', {
-            bookingUid,
-            error: error.message,
-            status: error.response?.status,
-            data: error.response?.data
-        });
-
-        return this.handleApiError(error, 'reschedule');
+            return this.handleApiError(error, 'reschedule');
+        }
     }
-}
+
     /**
      * Cancel a booking using Cal.com API
      */
-    async cancelBooking({ bookingUid, cancellationReason }) {
+    async cancelBooking({ bookingUid, cancellationReason, equipmentType }) {
         try {
-            const payload = {
+            const apiKey = this.getApiKey(equipmentType);
+            const client = this.createClient(apiKey);
+
+            const payload = { bookingUid, cancellationReason };
+
+            logger.info('Attempting to cancel booking:', { bookingUid, equipmentType });
+
+            const response = await client.post('/bookings/cancel', payload);
+
+            logger.info('Booking cancelled successfully:', {
                 bookingUid,
-                cancellationReason
-            };
-
-            logger.info('Attempting to cancel booking:', { bookingUid });
-
-            const response = await this.client.post('/bookings/cancel', payload);
-            
-            logger.info('Booking cancelled successfully:', { 
-                bookingUid, 
-                responseStatus: response.status 
+                responseStatus: response.status
             });
 
             return {
@@ -153,6 +151,34 @@ class CalComService {
     }
 
     /**
+     * Get booking details (for debugging/verification)
+     */
+    async getBooking(bookingUid, equipmentType) {
+        try {
+            const apiKey = this.getApiKey(equipmentType);
+            const client = this.createClient(apiKey);
+
+            logger.info('Fetching booking details:', { bookingUid, equipmentType });
+
+            const response = await client.get(`/bookings/${bookingUid}`);
+
+            return {
+                success: true,
+                data: response.data,
+                status: response.status
+            };
+
+        } catch (error) {
+            logger.error('Failed to fetch booking:', {
+                bookingUid,
+                error: error.message
+            });
+
+            return this.handleApiError(error, 'fetch');
+        }
+    }
+
+    /**
      * Handle API errors and format them consistently
      */
     handleApiError(error, operation) {
@@ -163,14 +189,12 @@ class CalComService {
         };
 
         if (error.response) {
-            // API responded with error status
             errorResponse.status = error.response.status;
             errorResponse.error = {
                 message: error.response.data?.message || `Failed to ${operation} booking`,
                 details: error.response.data || 'No additional details available'
             };
 
-            // Handle specific status codes
             switch (error.response.status) {
                 case 400:
                     errorResponse.error.message = 'Invalid request data provided to Cal.com API';
@@ -194,14 +218,12 @@ class CalComService {
                     errorResponse.error.message = `Cal.com API error: ${error.response.status}`;
             }
         } else if (error.request) {
-            // Network error
             errorResponse.status = 503;
             errorResponse.error = {
                 message: 'Unable to connect to Cal.com API. Please check your internet connection and try again',
                 details: 'Network timeout or connection refused'
             };
         } else {
-            // Other error
             errorResponse.status = 500;
             errorResponse.error = {
                 message: 'Unexpected error occurred while processing the request',
@@ -210,30 +232,6 @@ class CalComService {
         }
 
         return errorResponse;
-    }
-
-    /**
-     * Get booking details (for debugging/verification)
-     */
-    async getBooking(bookingUid) {
-        try {
-            logger.info('Fetching booking details:', { bookingUid });
-            
-            const response = await this.client.get(`/bookings/${bookingUid}`);
-            
-            return {
-                success: true,
-                data: response.data,
-                status: response.status
-            };
-        } catch (error) {
-            logger.error('Failed to fetch booking:', {
-                bookingUid,
-                error: error.message
-            });
-            
-            return this.handleApiError(error, 'fetch');
-        }
     }
 }
 
