@@ -1,25 +1,16 @@
 const express = require('express');
 const router = express.Router();
 
-// In-memory cache for webhook-synced bookings
+// ✅ This is your in-memory cache
 const bookingCache = [];
 
 router.post('/calcom', (req, res) => {
   try {
-    const {
-      triggerEvent,
-      uid,
-      title,
-      startTime,
-      endTime,
-      createdAt
-    } = req.body;
-
+    const { triggerEvent, uid, title, startTime, endTime } = req.body;
     const attendeeName = req.body['attendees.0.name'];
     const attendeeEmail = req.body['attendees.0.email'];
 
-    console.log('✅ Webhook received:', triggerEvent);
-    console.log('Body:', req.body);
+    console.log('📥 Incoming webhook:', triggerEvent, uid);
 
     if (triggerEvent === 'BOOKING_CREATED') {
       bookingCache.push({
@@ -27,29 +18,27 @@ router.post('/calcom', (req, res) => {
         title,
         startTime,
         endTime,
-        createdAt,
         attendeeName,
-        attendeeEmail
+        attendeeEmail,
+        status: 'Created'
       });
     }
 
     if (triggerEvent === 'BOOKING_CANCELLED') {
       const index = bookingCache.findIndex(b => b.uid === uid);
-      if (index !== -1) bookingCache.splice(index, 1);
+      if (index !== -1) bookingCache[index].status = 'Cancelled';
+    }
+
+    if (triggerEvent === 'BOOKING_RESCHEDULED') {
+      const index = bookingCache.findIndex(b => b.uid === uid);
+      if (index !== -1) bookingCache[index].status = 'Rescheduled';
     }
 
     res.status(200).send({ received: true });
   } catch (error) {
     console.error('❌ Webhook error:', error.message);
-    res.status(500).send({
-      success: false,
-      error: {
-        message: 'Internal server error',
-        timestamp: new Date().toISOString()
-      }
-    });
+    res.status(500).send({ error: 'Internal server error' });
   }
 });
 
-// Export both the route and the cache
 module.exports = { router, bookingCache };
